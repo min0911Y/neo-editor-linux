@@ -7,15 +7,16 @@
 #include <string.h>
 // #include <syscall.h>
 
-#include <iostream> // For std::cout, std::endl
-#include <cstdio>   // For printf, putchar, remove, rename
-#include <cstdint>  // For uintptr_t
-#include <fstream>  // For std::ifstream, std::ofstream
-#include <vector>   // For std::vector (used in new filesize)
-#include <string>   // For std::string (used in new Edit_File)
+#include <cctype>  // For isprint
+#include <cstdint> // For uintptr_t
+#include <cstdio>  // For printf, putchar, remove, rename
+#include <cstdlib> // For strtol, malloc, realloc, free (already used, but good to ensure)
+#include <fstream>   // For std::ifstream, std::ofstream
+#include <iostream>  // For std::cout, std::endl
 #include <ncurses.h> // For ncurses integration
-#include <cctype>    // For isprint
-#include <cstdlib>   // For strtol, malloc, realloc, free (already used, but good to ensure)
+#include <string>    // For std::string (used in new Edit_File)
+#include <vector>    // For std::vector (used in new filesize)
+
 
 // --- Basic Console I/O Stubs/Placeholders ---
 
@@ -24,99 +25,100 @@
 // We'll define these properly or replace them later.
 // For now, this helps reduce immediate "undeclared identifier" errors.
 
-// extern "C" int tty_get_xsize(); // Declaration will be kept if needed, definition changes
-// extern "C" int tty_get_ysize(); // Declaration will be kept if needed, definition changes
+// extern "C" int tty_get_xsize(); // Declaration will be kept if needed,
+// definition changes extern "C" int tty_get_ysize(); // Declaration will be
+// kept if needed, definition changes
 
 // Ncurses versions of console I/O
-extern "C" int tty_get_xsize() { return COLS; } // Added extern "C"
+extern "C" int tty_get_xsize() { return COLS; }  // Added extern "C"
 extern "C" int tty_get_ysize() { return LINES; } // Added extern "C"
 
 void goto_xy(int x, int y) {
-    move(y, x); // Ncurses: move(row, col)
+  move(y, x); // Ncurses: move(row, col)
 }
 
 // Renamed original putch to avoid conflict
-void editor_putch(char ch) {
-    addch(ch);
-}
+void editor_putch(char ch) { addch(ch); }
 
-void print(const char* str) {
-    addstr(str);
-}
+void print(const char *str) { addstr(str); }
 
 void editor_clear() { // Renamed from clear()
-    erase(); // Ncurses function to clear screen
+  erase();            // Ncurses function to clear screen
 }
 
 unsigned short get_cons_color() {
-    // This function's return value was used to restore color.
-    // With ncurses, we explicitly set colors.
-    // So, returning a "default" DOS color is mainly for placeholder.
-    return 0x07; // Default DOS white on black
+  // This function's return value was used to restore color.
+  // With ncurses, we explicitly set colors.
+  // So, returning a "default" DOS color is mainly for placeholder.
+  return 0x07; // Default DOS white on black
 }
 
 void set_cons_color(unsigned short color) {
-    if (!has_colors()) return;
+  if (!has_colors())
+    return;
 
-    // attr_t new_attr = A_NORMAL; // new_attr not used
-    int pair_number = 0;
+  // attr_t new_attr = A_NORMAL; // new_attr not used
+  int pair_number = 0;
 
-    // Basic mapping - can be expanded
-    // DOS colors: Lower nibble is foreground, upper is background.
-    // 0=black, 1=blue, 2=green, 3=cyan, 4=red, 5=magenta, 6=yellow, 7=white
-    // We've defined pairs based on common usage rather than direct bit-mapping for now.
-    switch (color) {
-        case 0x07: // White on Black (normal)
-            pair_number = 1;
-            break;
-        case 0x70: // Black on White (status bar)
-            pair_number = 2;
-            break;
-        // Add more cases if other specific DOS color attributes are used elsewhere.
-        // For syntax highlighting, we might need a more dynamic mapping or more pairs.
-        // Example: if original code used 0x0C for bright red on black
-        case 0x0C: // Bright Red on Black
-        case 0x04: // Red on Black
-            pair_number = 3;
-            break;
-        case 0x02: // Green on Black
-            pair_number = 4;
-            break;
-        case 0x01: // Blue on Black
-            pair_number = 5;
-            break;
-        case 0x03: // Cyan on Black
-            pair_number = 6;
-            break;
-        case 0x05: // Magenta on Black
-            pair_number = 7;
-            break;
-        case 0x06: // Yellow on Black
-             pair_number = 8;
-             break;
-        default:   // Default to normal
-            pair_number = 1; // Or 0 if pair 0 is A_NORMAL (pair 0 is special in ncurses)
-            break;
-    }
-    
-    // Turn off all previous attributes, then turn on the new one.
-    // A_NORMAL might not be enough if other attributes (bold, etc.) were used.
-    attroff(A_COLOR); // Turn off color attributes specifically
-    // bkgd(COLOR_PAIR(0)); // Reset background to default pair 0 if needed (optional)
-    if (pair_number > 0) {
-         attron(COLOR_PAIR(pair_number));
-    }
-    // else if (pair_number == 0) { attron(A_NORMAL); } // if pair_number can be 0 for default
+  // Basic mapping - can be expanded
+  // DOS colors: Lower nibble is foreground, upper is background.
+  // 0=black, 1=blue, 2=green, 3=cyan, 4=red, 5=magenta, 6=yellow, 7=white
+  // We've defined pairs based on common usage rather than direct bit-mapping
+  // for now.
+  switch (color) {
+  case 0x07: // White on Black (normal)
+    pair_number = 1;
+    break;
+  case 0x70: // Black on White (status bar)
+    pair_number = 2;
+    break;
+  // Add more cases if other specific DOS color attributes are used elsewhere.
+  // For syntax highlighting, we might need a more dynamic mapping or more
+  // pairs. Example: if original code used 0x0C for bright red on black
+  case 0x0C: // Bright Red on Black
+  case 0x04: // Red on Black
+    pair_number = 3;
+    break;
+  case 0x02: // Green on Black
+    pair_number = 4;
+    break;
+  case 0x01: // Blue on Black
+    pair_number = 5;
+    break;
+  case 0x03: // Cyan on Black
+    pair_number = 6;
+    break;
+  case 0x05: // Magenta on Black
+    pair_number = 7;
+    break;
+  case 0x06: // Yellow on Black
+    pair_number = 8;
+    break;
+  default: // Default to normal
+    pair_number =
+        1; // Or 0 if pair 0 is A_NORMAL (pair 0 is special in ncurses)
+    break;
+  }
+
+  // Turn off all previous attributes, then turn on the new one.
+  // A_NORMAL might not be enough if other attributes (bold, etc.) were used.
+  attroff(A_COLOR); // Turn off color attributes specifically
+  // bkgd(COLOR_PAIR(0)); // Reset background to default pair 0 if needed
+  // (optional)
+  if (pair_number > 0) {
+    attron(COLOR_PAIR(pair_number));
+  }
+  // else if (pair_number == 0) { attron(A_NORMAL); } // if pair_number can be 0
+  // for default
 }
 
 void tty_stop_cur_moving() {
-    curs_set(0); // Make cursor invisible
+  curs_set(0); // Make cursor invisible
 }
 
 void tty_start_cur_moving() {
-    curs_set(1); // Make cursor visible (normal)
+  curs_set(1); // Make cursor visible (normal)
 }
-
 
 // --- Stubs for other missing functions from DOS headers ---
 // Add stubs for functions that were likely in mouse.h, mst.h, or syscall.h
@@ -130,100 +132,107 @@ void tty_start_cur_moving() {
 // int GetMouse_x(int mouse_event) { (void)mouse_event; return 0; }
 // int GetMouse_y(int mouse_event) { (void)mouse_event; return 0; }
 
-// From syscall.h (custom DOS file operations) - Replaced with C++ implementations
-long filesize(const char* filename) {
-    std::ifstream file(filename, std::ios::binary | std::ios::ate);
-    if (!file.is_open()) {
-        return -1; // Error or file not found
-    }
-    long size = file.tellg();
-    file.close();
-    return size == -1 ? -1 : size; // tellg can return -1 on error
+// From syscall.h (custom DOS file operations) - Replaced with C++
+// implementations
+long filesize(const char *filename) {
+  std::ifstream file(filename, std::ios::binary | std::ios::ate);
+  if (!file.is_open()) {
+    return -1; // Error or file not found
+  }
+  long size = file.tellg();
+  file.close();
+  return size == -1 ? -1 : size; // tellg can return -1 on error
 }
 
-void api_ReadFile(const char* filename, char* buffer) {
-    std::ifstream file(filename, std::ios::binary);
-    if (!file.is_open() || !buffer) {
-        if (buffer) buffer[0] = '\0';
-        return;
-    }
+void api_ReadFile(const char *filename, char *buffer) {
+  std::ifstream file(filename, std::ios::binary);
+  if (!file.is_open() || !buffer) {
+    if (buffer)
+      buffer[0] = '\0';
+    return;
+  }
 
-    // Get file size to know how much to read
-    file.seekg(0, std::ios::end);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::ios_base::beg); // Corrected std::ios::beg
+  // Get file size to know how much to read
+  file.seekg(0, std::ios::end);
+  std::streamsize size = file.tellg();
+  file.seekg(0, std::ios::ios_base::beg); // Corrected std::ios::beg
 
-    if (size > 0) {
-        file.read(buffer, size);
-        if (file.gcount() < size) { // If read less than expected
-             // Handle error or partial read if necessary, for now, null terminate what was read
-             buffer[file.gcount()] = '\0';
-        } else {
-            buffer[size] = '\0'; // Ensure null termination
-        }
+  if (size > 0) {
+    file.read(buffer, size);
+    if (file.gcount() < size) { // If read less than expected
+      // Handle error or partial read if necessary, for now, null terminate what
+      // was read
+      buffer[file.gcount()] = '\0';
     } else {
-        buffer[0] = '\0'; // Empty file or error
+      buffer[size] = '\0'; // Ensure null termination
     }
-    file.close();
+  } else {
+    buffer[0] = '\0'; // Empty file or error
+  }
+  file.close();
 }
 
-void mkfile(const char* filename) {
-    std::ofstream file(filename, std::ios::binary); // Just creating it is enough
-    if (file.is_open()) {
-        file.close();
-    }
-    // No explicit error handling here, matches original stub's lack of return.
-    // Downstream code expects filesize to be -1 if it doesn't exist.
+void mkfile(const char *filename) {
+  std::ofstream file(filename, std::ios::binary); // Just creating it is enough
+  if (file.is_open()) {
+    file.close();
+  }
+  // No explicit error handling here, matches original stub's lack of return.
+  // Downstream code expects filesize to be -1 if it doesn't exist.
 }
 
-void Edit_File(const char* filename, const char* buffer, int len, int unknown_flag) {
-    (void)unknown_flag; // Original flag likely DOS specific, ignore.
+void Edit_File(const char *filename, const char *buffer, int len,
+               int unknown_flag) {
+  (void)unknown_flag; // Original flag likely DOS specific, ignore.
 
-    // The original main function uses Edit_File like this:
-    // Edit_File(argv[1], bb, strlen(c) + mLine(c, l), 0);
-    // It seems to imply that 'len' is the correct length of 'bb'.
-    // However, 'bb' is constructed by adding \r for every \n in 'c'.
-    // strlen(c) + mLine(c,l) IS the correct length of bb.
+  // The original main function uses Edit_File like this:
+  // Edit_File(argv[1], bb, strlen(c) + mLine(c, l), 0);
+  // It seems to imply that 'len' is the correct length of 'bb'.
+  // However, 'bb' is constructed by adding \r for every \n in 'c'.
+  // strlen(c) + mLine(c,l) IS the correct length of bb.
 
-    // Atomicity: Write to a temporary file then rename to avoid data loss on crash
-    std::string temp_filename = std::string(filename) + ".tmp";
-    std::ofstream file(temp_filename, std::ios::binary | std::ios::trunc);
-    if (!file.is_open() || !buffer) {
-        return; // Cannot open temp file or buffer is null
-    }
+  // Atomicity: Write to a temporary file then rename to avoid data loss on
+  // crash
+  std::string temp_filename = std::string(filename) + ".tmp";
+  std::ofstream file(temp_filename, std::ios::binary | std::ios::trunc);
+  if (!file.is_open() || !buffer) {
+    return; // Cannot open temp file or buffer is null
+  }
 
-    file.write(buffer, len);
-    file.close();
+  file.write(buffer, len);
+  file.close();
 
-    if (file.fail()) { // Check if write or close failed
-        std::remove(temp_filename.c_str()); // Clean up temp file
-        return;
-    }
+  if (file.fail()) {                    // Check if write or close failed
+    std::remove(temp_filename.c_str()); // Clean up temp file
+    return;
+  }
 
-    // Replace original file with temp file
-    // std::rename (from <cstdio>) is preferred.
-    // Need to remove the old file first on some systems for rename to work if it exists.
-    std::remove(filename); // Remove original, C++17 std::filesystem::rename is better but sticking to C++11 for now
-    if (std::rename(temp_filename.c_str(), filename) != 0) {
-        // Handle rename error, e.g., print an error, try to restore backup, etc.
-        // For now, just clean up temp file if rename failed.
-        std::remove(temp_filename.c_str());
-    }
+  // Replace original file with temp file
+  // std::rename (from <cstdio>) is preferred.
+  // Need to remove the old file first on some systems for rename to work if it
+  // exists.
+  std::remove(filename); // Remove original, C++17 std::filesystem::rename is
+                         // better but sticking to C++11 for now
+  if (std::rename(temp_filename.c_str(), filename) != 0) {
+    // Handle rename error, e.g., print an error, try to restore backup, etc.
+    // For now, just clean up temp file if rename failed.
+    std::remove(temp_filename.c_str());
+  }
 }
 
 // From mst.h (likely related to syntax highlighting config)
 // These are more complex and involve custom types.
 // For now, just declare the types as incomplete and stub functions.
 struct MST_Object; // Defined as global variable later
-struct SPACE;     // Defined as global variable later
-struct Array;     // Defined as global variable later // This might conflict with std::array if <array> is included.
-              // The original code doesn't use std::array.
+struct SPACE;      // Defined as global variable later
+struct Array; // Defined as global variable later // This might conflict with
+              // std::array if <array> is included. The original code doesn't
+              // use std::array.
 
-// MST_Object* mst_obj = nullptr; // Global variable from original code - defined later
-// SPACE* comment_config = nullptr; // Defined later
-// SPACE* number_config = nullptr; // Defined later
-// Array* keymap = nullptr; // Defined later
-// Array* string_style = nullptr; // Defined later
+// MST_Object* mst_obj = nullptr; // Global variable from original code -
+// defined later SPACE* comment_config = nullptr; // Defined later SPACE*
+// number_config = nullptr; // Defined later Array* keymap = nullptr; // Defined
+// later Array* string_style = nullptr; // Defined later
 
 // Example stub for a function that might have been in mst.h
 // This is a guess, actual functions will be clear from compiler errors.
@@ -241,51 +250,56 @@ struct Array;     // Defined as global variable later // This might conflict wit
 // Text_Draw_Box - this was a macro T_DrawBox in the original code.
 // It's used for drawing boxes, possibly for UI elements or highlighting.
 void Text_Draw_Box(int r1, int c1, int r2, int c2, int dos_color) {
-    if (!has_colors() && dos_color != 0x07) { // If no colors, only draw if it's default color
-        // Or decide how to handle colors on non-color terminals.
-        // For now, we'll just use the default attributes if no colors.
-    } else {
-         set_cons_color(dos_color); // Set the color for the box
-    }
+  if (!has_colors() &&
+      dos_color != 0x07) { // If no colors, only draw if it's default color
+    // Or decide how to handle colors on non-color terminals.
+    // For now, we'll just use the default attributes if no colors.
+  } else {
+    set_cons_color(dos_color); // Set the color for the box
+  }
 
-    // Draw corners
-    mvaddch(r1, c1, ACS_ULCORNER);
-    mvaddch(r1, c2, ACS_URCORNER);
-    mvaddch(r2, c1, ACS_LLCORNER);
-    mvaddch(r2, c2, ACS_LRCORNER);
+  // Draw corners
+  mvaddch(r1, c1, ACS_ULCORNER);
+  mvaddch(r1, c2, ACS_URCORNER);
+  mvaddch(r2, c1, ACS_LLCORNER);
+  mvaddch(r2, c2, ACS_LRCORNER);
 
-    // Draw horizontal lines
-    for (int x = c1 + 1; x < c2; ++x) {
-        mvaddch(r1, x, ACS_HLINE); // Top
-        mvaddch(r2, x, ACS_HLINE); // Bottom
-    }
+  // Draw horizontal lines
+  for (int x = c1 + 1; x < c2; ++x) {
+    mvaddch(r1, x, ACS_HLINE); // Top
+    mvaddch(r2, x, ACS_HLINE); // Bottom
+  }
 
-    // Draw vertical lines
-    for (int y = r1 + 1; y < r2; ++y) {
-        mvaddch(y, c1, ACS_VLINE); // Left
-        mvaddch(y, c2, ACS_VLINE); // Right
-    }
-    
-    // It's generally the caller's responsibility to reset color after the box
-    // or if Text_Draw_Box is part of a larger drawing operation, the color
-    // set here will persist for subsequent drawing commands in that operation
-    // until set_cons_color is called again.
-    // For safety, if this function is called standalone, one might want to reset
-    // to a default color, but given its usage, it's likely part of render::showAll
-    // which manages colors.
-    // set_cons_color(0x07); // Optionally reset to default color if needed immediately
+  // Draw vertical lines
+  for (int y = r1 + 1; y < r2; ++y) {
+    mvaddch(y, c1, ACS_VLINE); // Left
+    mvaddch(y, c2, ACS_VLINE); // Right
+  }
+
+  // It's generally the caller's responsibility to reset color after the box
+  // or if Text_Draw_Box is part of a larger drawing operation, the color
+  // set here will persist for subsequent drawing commands in that operation
+  // until set_cons_color is called again.
+  // For safety, if this function is called standalone, one might want to reset
+  // to a default color, but given its usage, it's likely part of
+  // render::showAll which manages colors. set_cons_color(0x07); // Optionally
+  // reset to default color if needed immediately
 }
 
-int get_xy() { return 0; } // Added stub - Note: ncurses has getyx(stdscr, y, x);
+int get_xy() {
+  return 0;
+} // Added stub - Note: ncurses has getyx(stdscr, y, x);
 
 // Removed: int getch() { return getchar(); } // Ncurses getch() will be used
 
-void scan(char* buf, int n) { // Added stub - Note: ncurses has getstr() or variants
-    (void)n; // Suppress unused parameter warning for now
-    scanf("%s", buf); // This will be replaced by ncurses input like getnstr
+void scan(char *buf,
+          int n) {  // Added stub - Note: ncurses has getstr() or variants
+  (void)n;          // Suppress unused parameter warning for now
+  scanf("%s", buf); // This will be replaced by ncurses input like getnstr
 }
 
-// #define CLICK_LEFT 1 // Removed - ncurses uses event.bstate & BUTTON1_CLICKED etc.
+// #define CLICK_LEFT 1 // Removed - ncurses uses event.bstate & BUTTON1_CLICKED
+// etc.
 
 #define VIEW_LINE 0 // 有bug，暂时不开启
 int mLine(char *buffer, int len);
@@ -536,7 +550,8 @@ void putSpace(int x, int y, int w, int h) {
 // 显示状态栏
 void setState(const char *msg) { // Changed to const char*
   short bx, by;
-  (void)bx; (void)by; // Mark as unused
+  (void)bx;
+  (void)by; // Mark as unused
   unsigned cons = get_cons_color();
   set_cons_color(0x70);
   putSpace(0, MAX_LINE, MAX_CHAR_A_LINE, 1); // 先清空最下面那行
@@ -652,7 +667,8 @@ int get_index_of_nth_next_line(int n, char *buf, int pos, int len) {
       j++;
     }
   }
-  return pos; // Added return for control path that reaches end of non-void function
+  return pos; // Added return for control path that reaches end of non-void
+              // function
 }
 /* parse类是重要《核心》之一 */
 /*
@@ -691,7 +707,8 @@ public:
       1. ny和当前摄像机高度相同
       2. 缓冲区没有被修改过
      */
-    if (ny == static_cast<unsigned int>(camera->y) && cf == 0) { // Cast camera->y to unsigned
+    if (ny == static_cast<unsigned int>(camera->y) &&
+        cf == 0) { // Cast camera->y to unsigned
       return;
     }
     cf = 0;
@@ -709,16 +726,20 @@ public:
     */
     int l = 0;
     int sc = 0;
-    int f = 0; (void)f; // Mark f as unused
+    int f = 0;
+    (void)f; // Mark f as unused
     int nl = 0;
     int len = 0;
-    int sl = 0; (void)sl; // Mark sl as unused
+    int sl = 0;
+    (void)sl; // Mark sl as unused
     int i;
     // 首先，重新设置nidx，控制nidx到当前摄像机高度下的第一个字符
-    if (ny == static_cast<unsigned int>(camera->y)) { // Cast camera->y to unsigned
+    if (ny ==
+        static_cast<unsigned int>(camera->y)) { // Cast camera->y to unsigned
       i = nidx;
       l = ny;
-    } else if (ny > static_cast<unsigned int>(camera->y)) { // Cast camera->y to unsigned
+    } else if (ny > static_cast<unsigned int>(
+                        camera->y)) { // Cast camera->y to unsigned
       nidx = get_index_of_nth_last_line(ny - camera->y, camera->buffer, nidx,
                                         camera->len);
       i = nidx;
@@ -846,16 +867,16 @@ public:
 
     if (buffer_screen[by][bx] != ch) { // 如果说不一样？
       buffer_screen[by][bx] = ch; // 那就重新设置一下 然后覆盖输出
-      editor_putch(ch); // Changed to editor_putch
-    } else { // 一样的话还管啥啊
-      // goto_xy(bx + 1, by); // This logic might need rethink with ncurses direct addch
-      // For now, if char is same, just advance cursor
-      // Or, rely on addch to advance cursor. Let's try relying on addch.
-      // If we need to explicitly move, it would be move(by, bx + 1)
-      // but addch itself advances the cursor.
-      // So, if char is same, we effectively do nothing to screen, cursor position is key.
-      // This part of "efficient printing" might behave differently.
-      // Let's ensure cursor is where it should be for next potential char.
+      editor_putch(ch);           // Changed to editor_putch
+    } else {                      // 一样的话还管啥啊
+      // goto_xy(bx + 1, by); // This logic might need rethink with ncurses
+      // direct addch For now, if char is same, just advance cursor Or, rely on
+      // addch to advance cursor. Let's try relying on addch. If we need to
+      // explicitly move, it would be move(by, bx + 1) but addch itself advances
+      // the cursor. So, if char is same, we effectively do nothing to screen,
+      // cursor position is key. This part of "efficient printing" might behave
+      // differently. Let's ensure cursor is where it should be for next
+      // potential char.
       move(by, bx + 1);
     }
   }
@@ -882,7 +903,8 @@ public:
   ///////////////显示////////////////////
   void showAll() {
     Line *l = p->getBuf(); // 获取布局信息
-    char buf[90]; (void)buf; // Mark buf as unused
+    char buf[90];
+    (void)buf;             // Mark buf as unused
     tty_stop_cur_moving(); // 暂停光标移动
     goto_xy(0, 0);         // 将下一个字符的显示位置移动到原点
     for (int i = 0; i < MAX_LINE; i++) {
@@ -1012,7 +1034,7 @@ public:
     if (camera->len != 0) { // 分母不是0
       int d = (int)(((float)camera->index / (float)camera->len) *
                     100); // 算出百分比
-      const char *s; // Changed to const char*
+      const char *s;      // Changed to const char*
       // 计算之后需要的间隔
       if (d == 100) {
         s = "";
@@ -1425,8 +1447,9 @@ public:
   }
   char *Main(char *filename) {
     MEVENT event; // For mouse events
-    // system("cls"); // This will not work as expected with ncurses. Ncurses handles screen clearing.
-    // Note: The original `system("cls")` was here. It's removed as ncurses manages the screen.
+    // system("cls"); // This will not work as expected with ncurses. Ncurses
+    // handles screen clearing. Note: The original `system("cls")` was here.
+    // It's removed as ncurses manages the screen.
     c = (Camera *)malloc(sizeof(Camera));
     c->buffer = (char *)malloc(filesize(filename) + 1000);
     char *bf2 = (char *)malloc(filesize(filename) + 1000);
@@ -1456,7 +1479,8 @@ public:
     prse = new parse(c);
     prse->Set();
     n = new Note(c, prse);
-    Line *l = prse->getBuf(); // This is the existing declaration of 'l' (line 1457)
+    Line *l =
+        prse->getBuf(); // This is the existing declaration of 'l' (line 1457)
     r = new render(c->buffer, c, prse, filename);
 #if VIEW_LINE
     c->ml = n->maxLine();
@@ -1469,113 +1493,121 @@ public:
     // if (mouse_support())
     //   AddThread("mouse", (void*)&m_thread, (void*)(stack - 4));
     r->showAll();
-    int times = 0; (void)times; // Mark times as unused
-    int tap = 0; // For tab/auto-indent logic
+    int times = 0;
+    (void)times;  // Mark times as unused
+    int tap = 0;  // For tab/auto-indent logic
     int flag = 0; // For 'stap' command (toggle auto-indent behavior)
-    // Line *l = prse->getBuf(); // REMOVED REDECLARATION - 'l' is already in scope from line 1457
-    
+    // Line *l = prse->getBuf(); // REMOVED REDECLARATION - 'l' is already in
+    // scope from line 1457
+
     for (;;) {
-        int ch = getch(); // Ncurses getch()
+      int ch = getch(); // Ncurses getch()
 
-        // if (ch == 0) { // This check is likely not needed with ncurses getch()
-        //     continue;
-        // }
+      // if (ch == 0) { // This check is likely not needed with ncurses getch()
+      //     continue;
+      // }
 
-        if (ch == KEY_MOUSE) {
-            if (getmouse(&event) == OK) {
-                if (event.bstate & BUTTON1_CLICKED) {
-                    this->Click(event.x, event.y);
-                } else if (event.bstate & BUTTON4_PRESSED) { // Scroll wheel up
-                    this->Up();
-                } else if (event.bstate & BUTTON5_PRESSED) { // Scroll wheel down
-                    this->Down();
-                }
-            }
-        } else {
-            // Keyboard handling logic
-            if (ch == '\n' || ch == KEY_ENTER) { // Handle KEY_ENTER as well
-                l = prse->getBuf(); // Refresh line buffer before potential use
-                if (!flag) { 
-                    tap = 0; 
-                    if (c->curser_pos_y < MAX_LINE && l[c->curser_pos_y].line_flag) {
-                        for (tap = 0; tap < l[c->curser_pos_y].len; tap++) {
-                            if (l[c->curser_pos_y].line[tap].ch != ' ')
-                                break;
-                        }
-                    }
-                }
-                n->Insert('\n');
-                n->down(); 
-                
-                l = prse->getBuf(); // Re-fetch lines after potential modification by n->down()
-
-                if (c->curser_pos_x != 0) { 
-                    c->curser_pos_x = 0;
-                    if (c->curser_pos_y < MAX_LINE && l[c->curser_pos_y].line_flag) {
-                         if (l[c->curser_pos_y].len > 0) c->index = l[c->curser_pos_y].line[0].index;
-                         else c->index = l[c->curser_pos_y].start_index;
-                    } else if (c->curser_pos_y < MAX_LINE) { 
-                         c->index = l[c->curser_pos_y].start_index;
-                    }
-                }
-
-                if (!flag) { 
-                    for (int i = 0; i < tap; i++) {
-                        n->Insert(' ');
-                        n->right(0); 
-                    }
-                }
-            } else if (ch == '\b' || ch == KEY_BACKSPACE) { 
-                if (c->y + c->curser_pos_x + c->curser_pos_y != 0) {
-                    n->left();
-                    n->Delete();
-                }
-            } else if (ch == '\t') { // TAB - original code used this to SAVE and EXIT editor
-                return c->buffer; 
-            } else if (ch == 0x01) { // CTRL+A for command input
-                mvaddstr(LINES - 1, 0, ""); 
-                clrtoeol(); 
-                setState("");                        
-                char buf_cmd[100]; 
-                unsigned short temp_color = get_cons_color(); 
-                set_cons_color(0x70); 
-                
-                move(LINES - 1, 0);
-                echo(); 
-                getnstr(buf_cmd, 99); 
-                noecho(); 
-                
-                set_cons_color(temp_color); 
-
-                if (strncmp("to ", buf_cmd, 3) == 0) {
-                    n->To(strtol(buf_cmd + 3, nullptr, 10));
-                } else if (strcmp("stap", buf_cmd) == 0) {
-                    flag = !flag;
-                    setState(flag ? "Auto-indent ON " : "Auto-indent OFF"); 
-                    getch(); 
-                } else {
-                    setState("Bad Command!   "); 
-                    getch(); 
-                }
-                move(LINES -1, 0); clrtoeol();
-
-            } else if (ch == KEY_UP) { 
-                n->up();
-            } else if (ch == KEY_DOWN) { 
-                n->down();
-            } else if (ch == KEY_LEFT) { 
-                n->left();
-            } else if (ch == KEY_RIGHT) { 
-                n->right(1); 
-            } else {
-                if (isprint(ch)) { // Use isprint from <cctype> for printable characters
-                    n->Insert(ch);
-                    n->right(0); 
-                }
-            }
+      if (ch == KEY_MOUSE) {
+        if (getmouse(&event) == OK) {
+          if (event.bstate & BUTTON1_CLICKED) {
+            this->Click(event.x, event.y);
+          } else if (event.bstate & BUTTON4_PRESSED) { // Scroll wheel up
+            this->Up();
+          } else if (event.bstate & BUTTON5_PRESSED) { // Scroll wheel down
+            this->Down();
+          }
         }
-        prse->Set();  
-        r->showAll(); 
+      } else {
+        // Keyboard handling logic
+        if (ch == '\n' || ch == KEY_ENTER) { // Handle KEY_ENTER as well
+          l = prse->getBuf(); // Refresh line buffer before potential use
+          if (!flag) {
+            tap = 0;
+            if (c->curser_pos_y < MAX_LINE && l[c->curser_pos_y].line_flag) {
+              for (tap = 0; tap < l[c->curser_pos_y].len; tap++) {
+                if (l[c->curser_pos_y].line[tap].ch != ' ')
+                  break;
+              }
+            }
+          }
+          n->Insert('\n');
+          n->down();
+
+          l = prse->getBuf(); // Re-fetch lines after potential modification by
+                              // n->down()
+
+          if (c->curser_pos_x != 0) {
+            c->curser_pos_x = 0;
+            if (c->curser_pos_y < MAX_LINE && l[c->curser_pos_y].line_flag) {
+              if (l[c->curser_pos_y].len > 0)
+                c->index = l[c->curser_pos_y].line[0].index;
+              else
+                c->index = l[c->curser_pos_y].start_index;
+            } else if (c->curser_pos_y < MAX_LINE) {
+              c->index = l[c->curser_pos_y].start_index;
+            }
+          }
+
+          if (!flag) {
+            for (int i = 0; i < tap; i++) {
+              n->Insert(' ');
+              n->right(0);
+            }
+          }
+        } else if (ch == '\b' || ch == KEY_BACKSPACE) {
+          if (c->y + c->curser_pos_x + c->curser_pos_y != 0) {
+            n->left();
+            n->Delete();
+          }
+        } else if (ch == '\t') { // TAB - original code used this to SAVE and
+                                 // EXIT editor
+          return c->buffer;
+        } else if (ch == 0x01) { // CTRL+A for command input
+          mvaddstr(LINES - 1, 0, "");
+          clrtoeol();
+          setState("");
+          char buf_cmd[100];
+          unsigned short temp_color = get_cons_color();
+          set_cons_color(0x70);
+
+          move(LINES - 1, 0);
+          echo();
+          getnstr(buf_cmd, 99);
+          noecho();
+
+          set_cons_color(temp_color);
+
+          if (strncmp("to ", buf_cmd, 3) == 0) {
+            n->To(strtol(buf_cmd + 3, nullptr, 10));
+          } else if (strcmp("auto-indent-switch", buf_cmd) == 0) {
+            flag = !flag;
+            setState(flag ? "Auto-indent OFF " : "Auto-indent ON");
+            getch();
+          } else {
+            setState("Bad Command!   ");
+            getch();
+          }
+          move(LINES - 1, 0);
+          clrtoeol();
+
+        } else if (ch == KEY_UP) {
+          n->up();
+        } else if (ch == KEY_DOWN) {
+          n->down();
+        } else if (ch == KEY_LEFT) {
+          n->left();
+        } else if (ch == KEY_RIGHT) {
+          n->right(1);
+        } else {
+          if (isprint(
+                  ch)) { // Use isprint from <cctype> for printable characters
+            n->Insert(ch);
+            n->right(0);
+          }
+        }
+      }
+      prse->Set();
+      r->showAll();
     }
   }
 };
@@ -1605,36 +1637,36 @@ int mLine(char *buffer, int len) {
 }
 int main(int argc, char **argv) {
   if (argc == 1) {
-    printf("Usage: %s <FileName>\n",argv[0]);
+    printf("Usage: %s <FileName>\n", argv[0]);
     return 0;
   }
-  initscr();      // Start ncurses mode
-  start_color();  // Start color functionality
+  initscr();     // Start ncurses mode
+  start_color(); // Start color functionality
 
   // Define Color Pairs
   if (has_colors()) {
-      init_pair(1, COLOR_WHITE, COLOR_BLACK); // Normal text (DOS 0x07)
-      init_pair(2, COLOR_BLACK, COLOR_WHITE); // Status bar (DOS 0x70)
-      // Add more pairs as needed, e.g., for syntax highlighting later
-      init_pair(3, COLOR_RED, COLOR_BLACK);
-      init_pair(4, COLOR_GREEN, COLOR_BLACK);
-      init_pair(5, COLOR_BLUE, COLOR_BLACK);
-      init_pair(6, COLOR_CYAN, COLOR_BLACK);
-      init_pair(7, COLOR_MAGENTA, COLOR_BLACK);
-      init_pair(8, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(1, COLOR_WHITE, COLOR_BLACK); // Normal text (DOS 0x07)
+    init_pair(2, COLOR_BLACK, COLOR_WHITE); // Status bar (DOS 0x70)
+    // Add more pairs as needed, e.g., for syntax highlighting later
+    init_pair(3, COLOR_RED, COLOR_BLACK);
+    init_pair(4, COLOR_GREEN, COLOR_BLACK);
+    init_pair(5, COLOR_BLUE, COLOR_BLACK);
+    init_pair(6, COLOR_CYAN, COLOR_BLACK);
+    init_pair(7, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(8, COLOR_YELLOW, COLOR_BLACK);
   }
 
-  raw();          // Line buffering disabled, pass on evertything
-  noecho();       // Don't echo() while we do getch
+  raw();                // Line buffering disabled, pass on evertything
+  noecho();             // Don't echo() while we do getch
   keypad(stdscr, TRUE); // Enable Funtion keys, arrow keys etc.
   mousemask(ALL_MOUSE_EVENTS, NULL); // Listen for all mouse events
-  curs_set(1);    // Set cursor to normal visibility initially
+  curs_set(1); // Set cursor to normal visibility initially
 
+  max_line = LINES - 1;   // Global variable
+  max_char_a_line = COLS; // Global variable
 
-  max_line = LINES - 1; // Global variable
-  max_char_a_line = COLS;   // Global variable
-
-  // mst_obj == nullptr; // Commented out, it's a check not an assignment and mst_obj is already null
+  // mst_obj == nullptr; // Commented out, it's a check not an assignment and
+  // mst_obj is already null
   char ext_str[100];
   size_t q; // Changed int to size_t
   for (q = 0; q < strlen(argv[1]); q++) {
@@ -1644,10 +1676,6 @@ int main(int argc, char **argv) {
   }
   strcpy(ext_str, argv[1] + q);
   strtoupper(ext_str);
-  if (filesize("/editor.mst") == -1) {
-    printf("Warning: Couldn't find `editor.mst`.\n");
-  } else {
-  }
   printf("Powerint DOS Editor v0.2c\n");
   printf("We can help you write note(code)s in Powerint DOS\n");
   printf("Copyright (C) 2023 min0911_\n");
@@ -1655,7 +1683,7 @@ int main(int argc, char **argv) {
   Editor *e = new Editor();
   char *c_buf = e->Main(argv[1]); // Renamed c to c_buf
   int len_c_buf = strlen(c_buf);  // Renamed l to len_c_buf
-  editor_clear(); // Renamed from clear()
+  editor_clear();                 // Renamed from clear()
   char *bb = (char *)malloc(len_c_buf + 1 + mLine(c_buf, len_c_buf));
   for (int i = 0, j = 0; i < len_c_buf; i++) {
     if (c_buf[i] == '\n') {
@@ -1668,6 +1696,6 @@ int main(int argc, char **argv) {
 
   editor_clear(); // Renamed from clear()
   Edit_File(argv[1], bb, len_c_buf + mLine(c_buf, len_c_buf), 0);
-  endwin();       // End ncurses mode
+  endwin(); // End ncurses mode
   return 0;
 }
