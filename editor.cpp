@@ -1535,7 +1535,7 @@ public:
             } else if (ch == 0x01) { // CTRL+A for command input
                 mvaddstr(LINES - 1, 0, ""); 
                 clrtoeol(); 
-                                        
+                setState("");                        
                 char buf_cmd[100]; 
                 unsigned short temp_color = get_cons_color(); 
                 set_cons_color(0x70); 
